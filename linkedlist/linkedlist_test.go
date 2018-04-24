@@ -7,7 +7,7 @@ import (
 )
 
 func TestLinkedList_ViewFromHead(t *testing.T) {
-	N := 100
+	N := 1000
 	ll := NewLinkedList(100)
 	for i := 0; i < N; i++ {
 		ll.Add(rand.Float32()*1000, 1)
@@ -17,7 +17,7 @@ func TestLinkedList_ViewFromHead(t *testing.T) {
 }
 
 func TestLinkedList_ViewFromTail(t *testing.T) {
-	N := 100
+	N := 1000
 	ll := NewLinkedList(100)
 	for i := 0; i < N; i++ {
 		ll.Add(rand.Float32()*1000, 1)
