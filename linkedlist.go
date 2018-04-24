@@ -1,4 +1,4 @@
-package linkedlist
+package sorted_linklist
 
 import (
 	"fmt"
@@ -129,7 +129,7 @@ func (l *LinkedList) Add(x float32, w float32) {
 		factor := l.Fractor * 1.5
 		for float32(l.Count) > l.Compression+20 {
 			l.compress(factor)
-			factor = factor * 1.5
+			factor = factor * 1.25
 		}
 	}
 
@@ -144,7 +144,6 @@ func (l *LinkedList) compress(factor float32) {
 	node := l.Head
 	for node != nil {
 		cs = append(cs, node)
-
 		node = node.Next
 	}
 
@@ -163,7 +162,6 @@ func (l *LinkedList) compress(factor float32) {
 
 func (l *LinkedList) Clear() {
 	l.Weights = 0
-	l.Max = 0
 	l.Count = 0
 	l.Head = nil
 	l.Tail = nil

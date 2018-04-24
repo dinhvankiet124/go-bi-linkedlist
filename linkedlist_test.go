@@ -1,4 +1,4 @@
-package linkedlist
+package sorted_linklist
 
 import (
 	"testing"
