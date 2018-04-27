@@ -2,20 +2,22 @@ package sorted_linklist
 
 import (
 	"fmt"
-	"math/rand"
+	"log"
 )
 
-const PI = 1.5 * 3.14159265359
+const PI = 3.14159265359
 
 type Centroid struct {
 	Mean   float32
 	Weight float32
 	Next   *Centroid
-	Prev   *Centroid
 }
 
 func (c *Centroid) String() string {
-	return fmt.Sprintf("Centroid{Mean=%f Weight=%f}", c.Mean, c.Weight)
+	if c.Next != nil {
+		return fmt.Sprintf("Centroid{Mean=%f Weight=%f Next}", c.Mean, c.Weight)
+	}
+	return fmt.Sprintf("Centroid{Mean=%f Weight=%f nil}", c.Mean, c.Weight)
 }
 
 func (c *Centroid) Update(that *Centroid) {
@@ -32,10 +34,8 @@ type LinkedList struct {
 	Compression float32
 	Weights     float32
 	Max         float32
-	Fractor     float32
 	Count       int
 	Head        *Centroid
-	Tail        *Centroid
 }
 
 func NewLinkedList(compression float32) *LinkedList {
@@ -43,128 +43,130 @@ func NewLinkedList(compression float32) *LinkedList {
 		Compression: compression,
 		Weights:     0,
 		Max:         0,
-		Fractor:     PI,
 		Count:       0,
 	}
 }
 
 func (l *LinkedList) Append(c *Centroid, that *Centroid) {
 	that.Next = c.Next
-	that.Prev = c
-
-	if c != l.Tail {
-		c.Next.Prev = that
-	}
 	c.Next = that
-
-	if c == l.Tail {
-		l.Tail = that
-	}
 }
 
 func (l *LinkedList) Size() int {
 	return l.Count
 }
 
-func (l *LinkedList) Add(x float32, w float32) {
+func (l *LinkedList) Add(x float32, w float32, q float32) float32 {
 	l.Weights += w
+
+	index := q * l.Weights
+	var p float32 = -1
+	var node *Centroid
 
 	c := &Centroid{Mean: x, Weight: w}
 	if l.Count == 0 {
 		l.Head = c
-		l.Tail = c
 		l.Count++
+
+		p = l.Head.Mean
 	} else {
 		inserted := false
 		if x < l.Head.Mean {
 			c.Next = l.Head
-			l.Head.Prev = c
 			l.Head = c
-			inserted = true
-		} else if x > l.Tail.Mean {
-			l.Tail.Next = c
-			c.Prev = l.Tail
-			l.Tail = c
 			inserted = true
 		}
 
 		var wSoFar float32 = 0
-		normalizer := l.Compression / (l.Fractor * l.Weights)
 
-		count := 0
-		node := l.Head
+		wDw := l.Head.Weight / 2.0
+		normalizer := l.Compression / (PI * l.Weights)
+
+		l.Count = 0
+		node = l.Head
 		next := node.Next
 		for next != nil {
 			if !inserted && next.Mean > x {
 				l.Append(node, c)
-				count++
+				l.Count++
 				inserted = true
 			}
 
 			proposed := node.Weight + next.Weight
+
+			// Percentile
+			dw := proposed / 2.0
+			if wDw+dw > index {
+				z1 := index - wDw
+				z2 := wDw + dw - index
+				p = (node.Mean*z2 + next.Mean*z1) / (z1 + z2)
+			}
+			wDw += dw
+
 			z := proposed * normalizer
 			q0 := wSoFar / l.Weights
 			q2 := (wSoFar + proposed) / l.Weights
 			if z*z <= q0*(1-q0) && z*z <= q2*(1-q2) {
 				node.Update(next)
 				node.Next = next.Next
-				if node.Next != nil {
-					node.Next.Prev = node
-				}
 
 				next = node.Next
 			} else {
 				wSoFar += node.Weight
-				count++
+				l.Count++
 
 				node = next
 				next = next.Next
 			}
 		}
-		l.Tail = node
-		count++
+		if !inserted {
+			node.Next = c
+			node = node.Next
+			l.Count++
+		}
+		l.Count++
 
-		l.Count = count
-
-		factor := l.Fractor * 1.5
-		for float32(l.Count) > l.Compression+20 {
-			l.compress(factor)
-			factor = factor * 1.25
+		if float32(l.Count) > 2*l.Compression+20 {
+			log.Fatal("Overflow ", l.Count)
 		}
 	}
 
 	if x > l.Max {
 		l.Max = x
 	}
+
+	if p == -1 && node != nil {
+		z1 := index - l.Weights - node.Weight/2.0
+		z2 := node.Weight/2.0 - z1
+		p = (node.Mean*z1 + l.Max*z2) / (z1 + z2)
+	}
+
+	if p == -1 {
+		p = 0
+	}
+
+	return p
 }
 
-func (l *LinkedList) compress(factor float32) {
-	cs := make([]*Centroid, 0, l.Count)
+func (l *LinkedList) Percentile(q float32) float32 {
+	index := q * l.Weights
 
-	node := l.Head
-	for node != nil {
-		cs = append(cs, node)
-		node = node.Next
+	var node *Centroid
+
+	wSoFar := l.Head.Weight / 2.0
+	for node = l.Head; node.Next != nil; node = node.Next {
+		dw := (node.Weight + node.Next.Weight) / 2.0
+		if wSoFar+dw > index {
+			z1 := index - wSoFar
+			z2 := wSoFar + dw - index
+			return (node.Mean*z2 + node.Next.Mean*z1) / (z1 + z2)
+		}
+		wSoFar += dw
 	}
 
-	for i := l.Count - 1; i > 1; i-- {
-		j := rand.Intn(i - 1)
-		cs[i], cs[j] = cs[j], cs[i]
-	}
-
-	l.Clear()
-	l.Fractor = factor
-	for _, c := range cs {
-		l.Add(c.Mean, c.Weight)
-	}
-	l.Fractor = PI
-}
-
-func (l *LinkedList) Clear() {
-	l.Weights = 0
-	l.Count = 0
-	l.Head = nil
-	l.Tail = nil
+	z1 := index - l.Weights - node.Weight/2.0
+	z2 := node.Weight/2.0 - z1
+	return (node.Mean*z1 + l.Max*z2) / (z1 + z2)
 }
 
 func (l *LinkedList) ViewFromHead() int {
@@ -174,18 +176,6 @@ func (l *LinkedList) ViewFromHead() int {
 		fmt.Println(node)
 
 		node = node.Next
-		count++
-	}
-	return count
-}
-
-func (l *LinkedList) ViewFromTail() int {
-	count := 0
-	node := l.Tail
-	for node != nil {
-		fmt.Println(node)
-
-		node = node.Prev
 		count++
 	}
 	return count

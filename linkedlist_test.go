@@ -4,24 +4,19 @@ import (
 	"testing"
 	"math/rand"
 	"fmt"
+	"time"
 )
 
 func TestLinkedList_ViewFromHead(t *testing.T) {
 	N := 1000
 	ll := NewLinkedList(100)
-	for i := 0; i < N; i++ {
-		ll.Add(rand.Float32()*1000, 1)
-	}
-	count := ll.ViewFromHead()
-	fmt.Println(ll.Size(), count)
-}
+	start := time.Now()
 
-func TestLinkedList_ViewFromTail(t *testing.T) {
-	N := 1000
-	ll := NewLinkedList(100)
+	var p float32 = 0
 	for i := 0; i < N; i++ {
-		ll.Add(rand.Float32()*1000, 1)
+		p = ll.Add(rand.Float32()*1000, 1, 0.95)
 	}
-	count := ll.ViewFromTail()
-	fmt.Println(ll.Size(), count)
+	fmt.Println("Cost", time.Now().Sub(start))
+	fmt.Println("Percentile", ll.Percentile(0.95), p)
+	fmt.Println("Size", ll.Size())
 }
